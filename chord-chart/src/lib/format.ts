@@ -1,19 +1,35 @@
-import type { ChordBar } from "./types";
+import type { ChordBar, SectionMarker } from "./types";
+import { sectionAt } from "./sections";
 
-/** Format bars as: |C _ _ _ | G _ _ _ | Am _ _ _ | F _ _ _ | */
-export function formatNotation(bars: ChordBar[], barsPerLine = 4): string {
+/** Format bars as: |C _ _ _ | G _ _ _ | … with [Intro]/[Verse] labels */
+export function formatNotation(
+  bars: ChordBar[],
+  barsPerLine = 4,
+  sections?: SectionMarker[],
+): string {
   const lines: string[] = [];
-  for (let i = 0; i < bars.length; i += barsPerLine) {
-    const chunk = bars.slice(i, i + barsPerLine);
-    const line = chunk.map((bar) => `|${bar.join(" ")} `).join("") + "|";
-    lines.push(line);
+  let i = 0;
+  while (i < bars.length) {
+    const label = sectionAt(sections, i);
+    if (label) lines.push(`[${label}]`);
+
+    let end = Math.min(i + barsPerLine, bars.length);
+    for (let j = i + 1; j < end; j++) {
+      if (sectionAt(sections, j)) {
+        end = j;
+        break;
+      }
+    }
+
+    const chunk = bars.slice(i, end);
+    lines.push(chunk.map((bar) => `|${bar.join(" ")} `).join("") + "|");
+    i = end;
   }
   return lines.join("\n");
 }
 
 export function progressionSummary(bars: ChordBar[]): string {
   const roots = bars.map((bar) => bar.find((c) => c !== "_") ?? "_");
-  // collapse consecutive duplicates for a short summary
   const compact: string[] = [];
   for (const c of roots) {
     if (c === "_") continue;

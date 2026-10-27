@@ -5,6 +5,7 @@ import os from "os";
 import path from "path";
 import { NextRequest, NextResponse } from "next/server";
 import { formatNotation } from "@/lib/format";
+import { defaultSections } from "@/lib/sections";
 import type { AnalyzeResponse, AnalyzeResult } from "@/lib/types";
 import {
   extractVideoId,
@@ -63,6 +64,18 @@ function parseAnalyzeOutput(stdout: string): AnalyzeResponse {
   }
 }
 
+function withSections(result: AnalyzeResult): AnalyzeResult {
+  const sections = result.sections?.length
+    ? result.sections
+    : defaultSections(result.bars.length);
+  return {
+    ...result,
+    sections,
+    transposeOffset: result.transposeOffset ?? 0,
+    notation: formatNotation(result.bars, 4, sections),
+  };
+}
+
 function manualChart(meta: {
   videoId: string;
   title: string;
@@ -71,7 +84,7 @@ function manualChart(meta: {
   notice: string;
 }): AnalyzeResult {
   const bars = emptyBars(8);
-  return {
+  return withSections({
     ok: true,
     videoId: meta.videoId,
     title: meta.title,
@@ -89,7 +102,7 @@ function manualChart(meta: {
     source: "youtube-manual",
     editable: true,
     notice: meta.notice,
-  };
+  });
 }
 
 export async function POST(req: NextRequest) {
@@ -133,11 +146,13 @@ export async function POST(req: NextRequest) {
             { status: 422 },
           );
         }
-        return NextResponse.json({
-          ...parsed,
-          source: "upload",
-          editable: true,
-        });
+        return NextResponse.json(
+          withSections({
+            ...parsed,
+            source: "upload",
+            editable: true,
+          }),
+        );
       } finally {
         await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => undefined);
       }
@@ -165,7 +180,9 @@ export async function POST(req: NextRequest) {
       if (!parsed.ok) {
         return NextResponse.json(parsed, { status: 422 });
       }
-      return NextResponse.json({ ...parsed, source: "demo", editable: true });
+      return NextResponse.json(
+        withSections({ ...parsed, source: "demo", editable: true }),
+      );
     }
 
     const url = body.url?.trim();
@@ -226,18 +243,20 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({
-      ...parsed,
-      title: parsed.title || title,
-      artist: parsed.artist || artist,
-      videoId,
-      url: watchUrl,
-      thumbnailUrl,
-      source: "youtube",
-      editable: true,
+      ...withSections({
+        ...parsed,
+        title: parsed.title || title,
+        artist: parsed.artist || artist,
+        videoId,
+        url: watchUrl,
+        thumbnailUrl,
+        source: "youtube",
+        editable: true,
+        notice: stderr.includes("WARNING")
+          ? "Analyzed from downloaded audio (estimate)."
+          : undefined,
+      }),
       requestId: randomUUID(),
-      notice: stderr.includes("WARNING")
-        ? "Analyzed from downloaded audio (estimate)."
-        : undefined,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unexpected server error.";

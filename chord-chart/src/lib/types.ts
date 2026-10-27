@@ -1,5 +1,11 @@
 export type ChordBar = string[];
 
+export type SectionMarker = {
+  /** 0-based bar index where this section starts */
+  barIndex: number;
+  name: string;
+};
+
 export type AnalyzeResult = {
   ok: true;
   videoId: string | null;
@@ -14,6 +20,9 @@ export type AnalyzeResult = {
   notation: string;
   progression: string[];
   barCount: number;
+  sections?: SectionMarker[];
+  /** Cumulative transpose in semitones from the analyzed original */
+  transposeOffset?: number;
   thumbnailUrl?: string;
   source?: "youtube" | "youtube-manual" | "upload" | "demo";
   editable?: boolean;
