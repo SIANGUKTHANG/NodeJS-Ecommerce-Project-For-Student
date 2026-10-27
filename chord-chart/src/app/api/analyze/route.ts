@@ -19,7 +19,8 @@ export const maxDuration = 300;
 
 const PYTHON = process.env.PYTHON_BIN || "python3";
 const SCRIPT = path.join(process.cwd(), "python", "analyze_chords.py");
-const MAX_SECONDS = Number(process.env.CHORD_MAX_SECONDS || 120);
+// Analyze up to 10 minutes by default so charts cover full songs.
+const MAX_SECONDS = Number(process.env.CHORD_MAX_SECONDS || 600);
 
 function emptyBars(count = 8): string[][] {
   return Array.from({ length: count }, () => ["_", "_", "_", "_"]);

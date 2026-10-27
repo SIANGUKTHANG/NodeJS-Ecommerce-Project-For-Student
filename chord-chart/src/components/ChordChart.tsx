@@ -102,7 +102,9 @@ function renderGuitarSimple(
         key={`run-${run.startBar}`}
         type="button"
         className={`guitar-chord ${isActive ? "is-active" : ""}`}
-        onClick={() => onSeekBeat?.(run.startBar * 4)}
+        onClick={() =>
+          onSeekBeat?.(run.startBar * (result.beatsPerBar ?? 4))
+        }
         aria-label={`${run.chord} for ${run.bars} bar${run.bars > 1 ? "s" : ""}`}
       >
         {isActive ? (
@@ -133,8 +135,11 @@ export function ChordChart({
   const summary = progressionSummary(result.bars);
   const editable = Boolean(result.editable && onChange && mode === "complex");
   const offset = result.transposeOffset ?? 0;
+  const beatsPerBar = result.beatsPerBar ?? 4;
   const active =
-    playheadBeat == null ? null : beatToBarBeat(playheadBeat);
+    playheadBeat == null
+      ? null
+      : beatToBarBeat(playheadBeat, beatsPerBar);
   const activeChord =
     active && result.bars[active.bar]
       ? soundingChord(result.bars, active.bar, active.beat)
@@ -196,9 +201,13 @@ export function ChordChart({
             {result.bpm ? ` · ${Math.round(result.bpm)} BPM` : ""}
             {result.timeSignature ? ` · ${result.timeSignature}` : ""}
             {result.analyzedSeconds
-              ? ` · first ${Math.round(result.analyzedSeconds)}s`
+              ? ` · ${Math.round(result.analyzedSeconds)}s analyzed`
+              : ""}
+            {result.beatOffset
+              ? ` · sync ${result.beatOffset.toFixed(2)}s`
               : ""}
             {offset !== 0 ? ` · transpose ${formatTransposeLabel(offset)}` : ""}
+            {result.complete === false ? " · incomplete" : ""}
           </p>
         </div>
         {result.thumbnailUrl ? (
@@ -276,7 +285,7 @@ export function ChordChart({
                       |
                     </span>
                     {bar.map((token, bj) => {
-                      const absoluteBeat = bi * 4 + bj;
+                      const absoluteBeat = bi * beatsPerBar + bj;
                       const isActive =
                         active != null &&
                         active.bar === bi &&
@@ -339,7 +348,7 @@ export function ChordChart({
                   </div>
                   <div className="chart-editor__bar">
                     {bar.map((beat, bj) => {
-                      const absoluteBeat = bi * 4 + bj;
+                      const absoluteBeat = bi * beatsPerBar + bj;
                       const isActive =
                         active != null &&
                         active.bar === bi &&

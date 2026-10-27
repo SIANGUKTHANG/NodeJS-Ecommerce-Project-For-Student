@@ -14,8 +14,14 @@ export type AnalyzeResult = {
   url: string | null;
   duration: number | null;
   bpm: number;
+  /** Seconds from audio start to beat 0 / downbeat */
+  beatOffset?: number;
+  beatsPerBar?: number;
   timeSignature: string;
   analyzedSeconds: number;
+  durationSeconds?: number;
+  /** False when analysis was truncated before full song length */
+  complete?: boolean;
   bars: string[][];
   notation: string;
   progression: string[];

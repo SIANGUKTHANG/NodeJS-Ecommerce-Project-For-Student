@@ -7,6 +7,7 @@ import { ListenExplainer } from "@/components/ListenExplainer";
 import { ModeToggle } from "@/components/ModeToggle";
 import { PlaybackDock } from "@/components/PlaybackDock";
 import { PrintActions } from "@/components/PrintActions";
+import { TimingControls } from "@/components/TimingControls";
 import type { ChartMode } from "@/lib/pdf";
 import type { AnalyzeResult } from "@/lib/types";
 
@@ -85,6 +86,7 @@ export default function HomePage() {
             seekToken={seekToken}
             onPlayhead={onPlayhead}
           />
+          <TimingControls result={result} onChange={setResult} />
           <ChordChart
             result={result}
             mode={mode}

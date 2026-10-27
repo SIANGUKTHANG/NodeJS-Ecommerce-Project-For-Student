@@ -115,6 +115,9 @@ export function PlaybackDock({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [result.videoId, audioSrc, playerHostId]);
 
+  const beatOffset = result.beatOffset ?? 0;
+  const beatsPerBar = result.beatsPerBar ?? 4;
+
   // Playhead polling
   useEffect(() => {
     function tick() {
@@ -124,7 +127,11 @@ export function PlaybackDock({
       } else if (mode === "audio" && audioRef.current) {
         t = audioRef.current.currentTime || 0;
       }
-      const beat = clampBeat(timeToBeat(t, result.bpm), result.barCount);
+      const beat = clampBeat(
+        timeToBeat(t, result.bpm, beatOffset),
+        result.barCount,
+        beatsPerBar,
+      );
       onPlayhead(beat, playing);
       rafRef.current = requestAnimationFrame(tick);
     }
@@ -138,12 +145,20 @@ export function PlaybackDock({
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [playing, mode, result.bpm, result.barCount, onPlayhead]);
+  }, [
+    playing,
+    mode,
+    result.bpm,
+    result.barCount,
+    beatOffset,
+    beatsPerBar,
+    onPlayhead,
+  ]);
 
   // External seek from chart click
   useEffect(() => {
     if (seekBeat == null || seekToken == null) return;
-    const t = beatToTime(seekBeat, result.bpm);
+    const t = beatToTime(seekBeat, result.bpm, beatOffset);
     if (mode === "youtube" && ytRef.current) {
       ytRef.current.seekTo(t, true);
       onPlayhead(seekBeat, playing);
@@ -151,7 +166,15 @@ export function PlaybackDock({
       audioRef.current.currentTime = t;
       onPlayhead(seekBeat, playing);
     }
-  }, [seekBeat, seekToken, mode, result.bpm, onPlayhead, playing]);
+  }, [
+    seekBeat,
+    seekToken,
+    mode,
+    result.bpm,
+    beatOffset,
+    onPlayhead,
+    playing,
+  ]);
 
   function toggle() {
     if (!canPlay || !ready) return;
