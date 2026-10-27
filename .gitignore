@@ -1,2 +1,5 @@
 node_modules/
 uploads/
+# ChordBars app
+chord-chart/node_modules/
+chord-chart/.next/
