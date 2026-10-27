@@ -220,7 +220,7 @@ export async function POST(req: NextRequest) {
           artist,
           thumbnailUrl,
           notice:
-            "Automatic YouTube audio download was blocked. Use the player below and fill the chord note by ear — or upload an audio file for auto-analysis.",
+            "Automatic YouTube audio download was blocked. Play the video and fill the chord note by ear — or upload an audio file for auto-analysis.",
         }),
       );
     }
