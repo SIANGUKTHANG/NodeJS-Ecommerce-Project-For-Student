@@ -6,6 +6,19 @@ export function barChord(bar: ChordBar, fallback = "_"): string {
   return bar.find((c) => c !== "_") ?? fallback;
 }
 
+/** Resolve held bars that are all "_" by looking backward. */
+export function soundingBarChord(
+  bars: ChordBar[],
+  index: number,
+  fallback = "_",
+): string {
+  for (let i = index; i >= 0; i--) {
+    const c = barChord(bars[i], "_");
+    if (c !== "_") return c;
+  }
+  return fallback;
+}
+
 export type ChordRun = {
   chord: string;
   startBar: number;
@@ -20,7 +33,7 @@ export function chordRuns(
 ): ChordRun[] {
   const runs: ChordRun[] = [];
   for (let i = 0; i < bars.length; i++) {
-    const chord = barChord(bars[i]);
+    const chord = soundingBarChord(bars, i);
     if (chord === "_") continue;
     const section = sectionAt(sections, i);
     const prev = runs[runs.length - 1];

@@ -349,25 +349,18 @@ def stabilize_bar_chords(beat_chords: list[str], beats_per_bar: int = 4) -> list
 
 
 def beats_to_bars(beat_chords: list[str], beats_per_bar: int = 4) -> list[list[str]]:
+    """One chord name on beat 1 of each bar; remaining beats are holds (_)."""
     bars: list[list[str]] = []
-    # Display convention for complex mode: chord on change, "_" while held
-    display: list[str] = []
-    prev = None
-    for c in beat_chords:
-        if c == "_" or c == prev:
-            display.append("_")
+    prev = "_"
+    for i in range(0, len(beat_chords), beats_per_bar):
+        chunk = beat_chords[i : i + beats_per_bar]
+        votes = [c for c in chunk if c != "_"]
+        chord = max(set(votes), key=votes.count) if votes else prev
+        if chord == "_":
+            bars.append(["_", "_", "_", "_"])
         else:
-            display.append(c)
-            prev = c if c != "_" else prev
-    for i in range(0, len(display), beats_per_bar):
-        chunk = display[i : i + beats_per_bar]
-        while len(chunk) < beats_per_bar:
-            chunk.append("_")
-        # Guitar-friendly: if bar has a chord, put it on beat 1 and hold
-        sounded = next((x for x in chunk if x != "_"), None)
-        if sounded:
-            chunk = [sounded, "_", "_", "_"]
-        bars.append(chunk)
+            bars.append([chord, "_", "_", "_"])
+            prev = chord
     return bars
 
 
