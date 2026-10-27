@@ -1,29 +1,37 @@
 "use client";
 
+import { useState } from "react";
 import type { AnalyzeResult } from "@/lib/types";
-import { formatNotation } from "@/lib/format";
+import {
+  formatNotation,
+  formatSimpleNotation,
+} from "@/lib/format";
+import { downloadChordPdf, type ChartMode } from "@/lib/pdf";
 import { formatTransposeLabel } from "@/lib/transpose";
 
 type Props = {
   result: AnalyzeResult;
+  mode: ChartMode;
 };
 
-export function PrintActions({ result }: Props) {
-  function printPdf() {
-    window.print();
-  }
+export function PrintActions({ result, mode }: Props) {
+  const [pdfBusy, setPdfBusy] = useState(false);
 
   function sheetText() {
     const offset = result.transposeOffset ?? 0;
+    const body =
+      mode === "simple"
+        ? formatSimpleNotation(result.bars, 4, result.sections)
+        : formatNotation(result.bars, 4, result.sections);
     return [
       result.title,
       result.artist,
       `${Math.round(result.bpm)} BPM · ${result.timeSignature}${
         offset ? ` · transpose ${formatTransposeLabel(offset)}` : ""
-      }`,
+      } · ${mode} mode`,
       result.url || "",
       "",
-      formatNotation(result.bars, 4, result.sections),
+      body,
       "",
     ]
       .filter((line, i, arr) => !(line === "" && arr[i - 1] === ""))
@@ -44,10 +52,27 @@ export function PrintActions({ result }: Props) {
     URL.revokeObjectURL(href);
   }
 
+  function exportPdf() {
+    setPdfBusy(true);
+    try {
+      downloadChordPdf(result, mode);
+    } finally {
+      setTimeout(() => setPdfBusy(false), 400);
+    }
+  }
+
   return (
     <div className="print-actions print-hide">
-      <button type="button" className="btn btn--primary" onClick={printPdf}>
-        Print / Save PDF
+      <button
+        type="button"
+        className="btn btn--primary"
+        onClick={exportPdf}
+        disabled={pdfBusy}
+      >
+        {pdfBusy ? "Building PDF…" : "Download PDF"}
+      </button>
+      <button type="button" className="btn btn--ghost" onClick={() => window.print()}>
+        Print
       </button>
       <button type="button" className="btn btn--ghost" onClick={copyNotation}>
         Copy notation

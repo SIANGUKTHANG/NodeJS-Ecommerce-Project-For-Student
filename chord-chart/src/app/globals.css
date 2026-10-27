@@ -432,6 +432,79 @@ code {
   text-align: center;
 }
 
+.mode-toggle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+}
+
+.mode-toggle__btn {
+  appearance: none;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  min-height: 2.4rem;
+  padding: 0.4rem 1rem;
+  background: transparent;
+  color: var(--fog);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.mode-toggle__btn.is-active {
+  background: linear-gradient(135deg, var(--amber) 0%, var(--amber-deep) 100%);
+  border-color: transparent;
+  color: #1a1205;
+}
+
+.mode-toggle__hint {
+  color: var(--mist);
+  font-size: 0.88rem;
+  margin-left: 0.25rem;
+}
+
+.listen-explainer {
+  margin-top: 1.25rem;
+  max-width: 36rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.65rem 0.9rem;
+  background: rgba(12, 26, 31, 0.45);
+}
+
+.listen-explainer summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--paper);
+}
+
+.listen-explainer__body {
+  margin-top: 0.65rem;
+  color: var(--mist);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.listen-explainer__body ol {
+  margin: 0.5rem 0;
+  padding-left: 1.2rem;
+}
+
+.listen-explainer__body p {
+  margin: 0.45rem 0;
+}
+
+.chart-live__simple-cell {
+  display: inline-flex;
+  align-items: stretch;
+}
+
+.chart-live__beat--bar {
+  min-width: 3rem;
+}
+
 .playback-dock {
   margin: 0 0 0.9rem;
 }

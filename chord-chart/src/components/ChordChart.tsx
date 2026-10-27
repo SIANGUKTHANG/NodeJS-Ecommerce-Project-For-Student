@@ -1,7 +1,14 @@
 "use client";
 
-import { formatNotation, progressionSummary } from "@/lib/format";
+import type { ReactNode } from "react";
+import {
+  barChord,
+  formatNotation,
+  formatSimpleNotation,
+  progressionSummary,
+} from "@/lib/format";
 import { beatToBarBeat, soundingChord } from "@/lib/playback";
+import type { ChartMode } from "@/lib/pdf";
 import { SECTION_OPTIONS, sectionAt, setSectionAt } from "@/lib/sections";
 import {
   formatTransposeLabel,
@@ -11,6 +18,7 @@ import type { AnalyzeResult } from "@/lib/types";
 
 type Props = {
   result: AnalyzeResult;
+  mode: ChartMode;
   onChange?: (next: AnalyzeResult) => void;
   playheadBeat?: number | null;
   isPlaying?: boolean;
@@ -55,15 +63,76 @@ function withNotation(result: AnalyzeResult, bars: string[][]): AnalyzeResult {
   };
 }
 
+function renderSimpleBars(
+  result: AnalyzeResult,
+  active: { bar: number; beat: number } | null,
+  onSeekBeat?: (beatIndex: number) => void,
+) {
+  const nodes: ReactNode[] = [];
+  let i = 0;
+  while (i < result.bars.length) {
+    const label = sectionAt(result.sections, i);
+    if (label) {
+      nodes.push(
+        <div key={`sec-${i}`} className="chart-sheet__section">
+          [{label}]
+        </div>,
+      );
+    }
+    let end = Math.min(i + 4, result.bars.length);
+    for (let j = i + 1; j < end; j++) {
+      if (sectionAt(result.sections, j)) {
+        end = j;
+        break;
+      }
+    }
+    nodes.push(
+      <div className="chart-live__bar" key={`simple-row-${i}`}>
+        {result.bars.slice(i, end).map((bar, offset) => {
+          const bi = i + offset;
+          const chord = barChord(bar);
+          const barActive = active != null && active.bar === bi;
+          return (
+            <span className="chart-live__simple-cell" key={`s-${bi}`}>
+              <span className="chart-live__pipe" aria-hidden="true">
+                |
+              </span>
+              <button
+                type="button"
+                className={`chart-live__beat chart-live__beat--bar ${barActive ? "is-active" : ""}`}
+                onClick={() => onSeekBeat?.(bi * 4)}
+                aria-label={`Bar ${bi + 1}: ${chord}`}
+              >
+                {barActive ? (
+                  <span className="chart-live__note" aria-hidden="true">
+                    ♪
+                  </span>
+                ) : null}
+                <span className="chart-live__token">{chord}</span>
+              </button>
+            </span>
+          );
+        })}
+        <span className="chart-live__pipe" aria-hidden="true">
+          |
+        </span>
+      </div>,
+    );
+    i = end;
+  }
+  return nodes;
+}
+
 export function ChordChart({
   result,
+  mode,
   onChange,
   playheadBeat = null,
   isPlaying = false,
   onSeekBeat,
 }: Props) {
   const summary = progressionSummary(result.bars);
-  const editable = Boolean(result.editable && onChange);
+  const editable = Boolean(result.editable && onChange && mode === "complex");
   const offset = result.transposeOffset ?? 0;
   const active =
     playheadBeat == null ? null : beatToBarBeat(playheadBeat);
@@ -71,6 +140,7 @@ export function ChordChart({
     active && result.bars[active.bar]
       ? soundingChord(result.bars, active.bar, active.beat)
       : null;
+  const simple = mode === "simple";
 
   function updateBeat(barIndex: number, beatIndex: number, value: string) {
     if (!onChange) return;
@@ -118,7 +188,9 @@ export function ChordChart({
     <section className="chart-sheet" id="chord-sheet" aria-label="Chord chart">
       <header className="chart-sheet__head">
         <div>
-          <p className="chart-sheet__kicker">Chord note</p>
+          <p className="chart-sheet__kicker">
+            Chord note · {simple ? "Simple" : "Complex"}
+          </p>
           <h2 className="chart-sheet__title">{result.title}</h2>
           <p className="chart-sheet__meta">
             {result.artist}
@@ -188,53 +260,58 @@ export function ChordChart({
       </p>
 
       <div
-        className={`chart-live ${isPlaying ? "is-playing" : ""}`}
+        className={`chart-live ${isPlaying ? "is-playing" : ""} ${simple ? "chart-live--simple" : ""}`}
         aria-label="Chord bars with playhead"
       >
-        {result.bars.map((bar, bi) => {
-          const label = sectionAt(result.sections, bi);
-          return (
-            <div key={`live-bar-${bi}`}>
-              {label ? (
-                <div className="chart-sheet__section">[{label}]</div>
-              ) : null}
-              <div className="chart-live__bar">
-                <span className="chart-live__pipe" aria-hidden="true">
-                  |
-                </span>
-                {bar.map((token, bj) => {
-                  const absoluteBeat = bi * 4 + bj;
-                  const isActive =
-                    active != null && active.bar === bi && active.beat === bj;
-                  return (
-                    <button
-                      key={`live-${bi}-${bj}`}
-                      type="button"
-                      className={`chart-live__beat ${isActive ? "is-active" : ""}`}
-                      onClick={() => onSeekBeat?.(absoluteBeat)}
-                      aria-label={`Bar ${bi + 1} beat ${bj + 1}: ${token}`}
-                    >
-                      {isActive ? (
-                        <span className="chart-live__note" aria-hidden="true">
-                          ♪
-                        </span>
-                      ) : null}
-                      <span className="chart-live__token">{token}</span>
-                    </button>
-                  );
-                })}
-                <span className="chart-live__pipe" aria-hidden="true">
-                  |
-                </span>
-              </div>
-            </div>
-          );
-        })}
+        {simple
+          ? renderSimpleBars(result, active, onSeekBeat)
+          : result.bars.map((bar, bi) => {
+              const label = sectionAt(result.sections, bi);
+              return (
+                <div key={`live-bar-${bi}`}>
+                  {label ? (
+                    <div className="chart-sheet__section">[{label}]</div>
+                  ) : null}
+                  <div className="chart-live__bar">
+                    <span className="chart-live__pipe" aria-hidden="true">
+                      |
+                    </span>
+                    {bar.map((token, bj) => {
+                      const absoluteBeat = bi * 4 + bj;
+                      const isActive =
+                        active != null &&
+                        active.bar === bi &&
+                        active.beat === bj;
+                      return (
+                        <button
+                          key={`live-${bi}-${bj}`}
+                          type="button"
+                          className={`chart-live__beat ${isActive ? "is-active" : ""}`}
+                          onClick={() => onSeekBeat?.(absoluteBeat)}
+                          aria-label={`Bar ${bi + 1} beat ${bj + 1}: ${token}`}
+                        >
+                          {isActive ? (
+                            <span className="chart-live__note" aria-hidden="true">
+                              ♪
+                            </span>
+                          ) : null}
+                          <span className="chart-live__token">{token}</span>
+                        </button>
+                      );
+                    })}
+                    <span className="chart-live__pipe" aria-hidden="true">
+                      |
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
       </div>
 
-      {/* Print-only plain text notation */}
       <pre className="chart-sheet__notation chart-sheet__notation--print">
-        {formatNotation(result.bars, 4, result.sections)}
+        {simple
+          ? formatSimpleNotation(result.bars, 4, result.sections)
+          : formatNotation(result.bars, 4, result.sections)}
       </pre>
 
       {editable ? (
@@ -297,8 +374,9 @@ export function ChordChart({
       ) : null}
 
       <p className="chart-sheet__hint print-hide">
-        ♪ marks the beat in sync with playback · tap a beat to jump ·{" "}
-        <code>_</code> = hold
+        {simple
+          ? "Simple mode shows one chord per bar · switch to Complex for beat holds (_)"
+          : "♪ marks the beat in sync with playback · tap a beat to jump · _ = hold"}
       </p>
     </section>
   );

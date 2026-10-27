@@ -3,8 +3,11 @@
 import { useCallback, useState } from "react";
 import { AnalyzeForm } from "@/components/AnalyzeForm";
 import { ChordChart } from "@/components/ChordChart";
+import { ListenExplainer } from "@/components/ListenExplainer";
+import { ModeToggle } from "@/components/ModeToggle";
 import { PlaybackDock } from "@/components/PlaybackDock";
 import { PrintActions } from "@/components/PrintActions";
+import type { ChartMode } from "@/lib/pdf";
 import type { AnalyzeResult } from "@/lib/types";
 
 export default function HomePage() {
@@ -16,6 +19,7 @@ export default function HomePage() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [seekBeat, setSeekBeat] = useState<number | null>(null);
   const [seekToken, setSeekToken] = useState(0);
+  const [mode, setMode] = useState<ChartMode>("simple");
 
   const onPlayhead = useCallback((beat: number | null, playing: boolean) => {
     setPlayheadBeat(beat);
@@ -48,7 +52,7 @@ export default function HomePage() {
         </div>
         <p className="hero__tag">
           Paste a YouTube song. Get a beat-by-beat chord note ready to play —
-          and print as PDF.
+          and export as PDF.
         </p>
         <AnalyzeForm
           onResult={handleResult}
@@ -59,7 +63,7 @@ export default function HomePage() {
         />
         {busy ? (
           <p className="status status--busy" role="status">
-            Listening for harmony… this can take a minute for YouTube downloads.
+            Listening for harmony… chromagram matching in progress.
           </p>
         ) : null}
         {error ? (
@@ -67,11 +71,13 @@ export default function HomePage() {
             {error}
           </p>
         ) : null}
+        <ListenExplainer />
       </header>
 
       {result ? (
         <div className="result-wrap">
-          <PrintActions result={result} />
+          <ModeToggle mode={mode} onChange={setMode} />
+          <PrintActions result={result} mode={mode} />
           <PlaybackDock
             result={result}
             localAudioUrl={localAudioUrl}
@@ -81,6 +87,7 @@ export default function HomePage() {
           />
           <ChordChart
             result={result}
+            mode={mode}
             onChange={setResult}
             playheadBeat={playheadBeat}
             isPlaying={isPlaying}
@@ -101,25 +108,27 @@ export default function HomePage() {
           <ol>
             <li>Paste a YouTube URL (or try the demo / upload audio).</li>
             <li>
-              We pull the audio when possible, estimate tempo, and map each beat
-              to a chord.
+              Audio is analyzed with a chromagram + chord templates (not a chat
+              LLM).
             </li>
             <li>
-              Hit <strong>Play ♪</strong> — the note indicator follows the chart
-              in time with the music.
+              Switch <strong>Simple</strong> (one chord/bar) or{" "}
+              <strong>Complex</strong> (|C _ _ _| beats).
             </li>
-            <li>Print / Save PDF for a clean practice sheet.</li>
+            <li>
+              Hit <strong>Play ♪</strong>, then <strong>Download PDF</strong>{" "}
+              for a practice sheet.
+            </li>
           </ol>
           <p className="how__note">
-            Chord detection is automatic estimation from the mix (not an
-            official tab). Edit by ear when a voicing feels off.
+            Draft charts only — edit by ear when a voicing feels off.
           </p>
         </section>
       )}
 
       <footer className="footer print-hide">
         <span>ChordBars</span>
-        <span>YouTube chord notes · PDF print · synced ♪ playhead</span>
+        <span>Chromagram listening · PDF export · Simple/Complex</span>
       </footer>
     </main>
   );
