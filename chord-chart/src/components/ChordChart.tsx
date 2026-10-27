@@ -1,7 +1,8 @@
 "use client";
 
 import { formatNotation, progressionSummary } from "@/lib/format";
-import { SECTION_OPTIONS, setSectionAt } from "@/lib/sections";
+import { beatToBarBeat, soundingChord } from "@/lib/playback";
+import { SECTION_OPTIONS, sectionAt, setSectionAt } from "@/lib/sections";
 import {
   formatTransposeLabel,
   transposeBars,
@@ -11,6 +12,9 @@ import type { AnalyzeResult } from "@/lib/types";
 type Props = {
   result: AnalyzeResult;
   onChange?: (next: AnalyzeResult) => void;
+  playheadBeat?: number | null;
+  isPlaying?: boolean;
+  onSeekBeat?: (beatIndex: number) => void;
 };
 
 const CHORD_OPTIONS = [
@@ -51,11 +55,22 @@ function withNotation(result: AnalyzeResult, bars: string[][]): AnalyzeResult {
   };
 }
 
-export function ChordChart({ result, onChange }: Props) {
-  const lines = formatNotation(result.bars, 4, result.sections).split("\n");
+export function ChordChart({
+  result,
+  onChange,
+  playheadBeat = null,
+  isPlaying = false,
+  onSeekBeat,
+}: Props) {
   const summary = progressionSummary(result.bars);
   const editable = Boolean(result.editable && onChange);
   const offset = result.transposeOffset ?? 0;
+  const active =
+    playheadBeat == null ? null : beatToBarBeat(playheadBeat);
+  const activeChord =
+    active && result.bars[active.bar]
+      ? soundingChord(result.bars, active.bar, active.beat)
+      : null;
 
   function updateBeat(barIndex: number, beatIndex: number, value: string) {
     if (!onChange) return;
@@ -164,18 +179,62 @@ export function ChordChart({ result, onChange }: Props) {
 
       <p className="chart-sheet__progression">
         <span>Progression</span> {summary}
+        {activeChord && activeChord !== "_" ? (
+          <span className="chart-sheet__now print-hide">
+            {" "}
+            · now <strong>♪ {activeChord}</strong>
+          </span>
+        ) : null}
       </p>
 
-      <pre className="chart-sheet__notation" tabIndex={0}>
-        {lines.map((line, idx) =>
-          line.startsWith("[") && line.endsWith("]") ? (
-            <div key={`${line}-${idx}`} className="chart-sheet__section">
-              {line}
+      <div
+        className={`chart-live ${isPlaying ? "is-playing" : ""}`}
+        aria-label="Chord bars with playhead"
+      >
+        {result.bars.map((bar, bi) => {
+          const label = sectionAt(result.sections, bi);
+          return (
+            <div key={`live-bar-${bi}`}>
+              {label ? (
+                <div className="chart-sheet__section">[{label}]</div>
+              ) : null}
+              <div className="chart-live__bar">
+                <span className="chart-live__pipe" aria-hidden="true">
+                  |
+                </span>
+                {bar.map((token, bj) => {
+                  const absoluteBeat = bi * 4 + bj;
+                  const isActive =
+                    active != null && active.bar === bi && active.beat === bj;
+                  return (
+                    <button
+                      key={`live-${bi}-${bj}`}
+                      type="button"
+                      className={`chart-live__beat ${isActive ? "is-active" : ""}`}
+                      onClick={() => onSeekBeat?.(absoluteBeat)}
+                      aria-label={`Bar ${bi + 1} beat ${bj + 1}: ${token}`}
+                    >
+                      {isActive ? (
+                        <span className="chart-live__note" aria-hidden="true">
+                          ♪
+                        </span>
+                      ) : null}
+                      <span className="chart-live__token">{token}</span>
+                    </button>
+                  );
+                })}
+                <span className="chart-live__pipe" aria-hidden="true">
+                  |
+                </span>
+              </div>
             </div>
-          ) : (
-            <div key={`${line}-${idx}`}>{line}</div>
-          ),
-        )}
+          );
+        })}
+      </div>
+
+      {/* Print-only plain text notation */}
+      <pre className="chart-sheet__notation chart-sheet__notation--print">
+        {formatNotation(result.bars, 4, result.sections)}
       </pre>
 
       {editable ? (
@@ -203,21 +262,29 @@ export function ChordChart({ result, onChange }: Props) {
                     </select>
                   </div>
                   <div className="chart-editor__bar">
-                    {bar.map((beat, bj) => (
-                      <select
-                        key={`b-${bi}-${bj}`}
-                        className="chart-editor__select"
-                        value={beat}
-                        aria-label={`Bar ${bi + 1} beat ${bj + 1}`}
-                        onChange={(e) => updateBeat(bi, bj, e.target.value)}
-                      >
-                        {CHORD_OPTIONS.map((opt) => (
-                          <option key={opt} value={opt}>
-                            {opt}
-                          </option>
-                        ))}
-                      </select>
-                    ))}
+                    {bar.map((beat, bj) => {
+                      const absoluteBeat = bi * 4 + bj;
+                      const isActive =
+                        active != null &&
+                        active.bar === bi &&
+                        active.beat === bj;
+                      return (
+                        <select
+                          key={`b-${bi}-${bj}`}
+                          className={`chart-editor__select ${isActive ? "is-active" : ""}`}
+                          value={beat}
+                          aria-label={`Bar ${bi + 1} beat ${bj + 1}`}
+                          onChange={(e) => updateBeat(bi, bj, e.target.value)}
+                          onFocus={() => onSeekBeat?.(absoluteBeat)}
+                        >
+                          {CHORD_OPTIONS.map((opt) => (
+                            <option key={opt} value={opt}>
+                              {opt}
+                            </option>
+                          ))}
+                        </select>
+                      );
+                    })}
                   </div>
                 </div>
               );
@@ -230,8 +297,8 @@ export function ChordChart({ result, onChange }: Props) {
       ) : null}
 
       <p className="chart-sheet__hint print-hide">
-        Labels mark <code>[Intro]</code> / <code>[Verse]</code> /{" "}
-        <code>[Chorus]</code> · <code>|</code> = bar · <code>_</code> = hold
+        ♪ marks the beat in sync with playback · tap a beat to jump ·{" "}
+        <code>_</code> = hold
       </p>
     </section>
   );

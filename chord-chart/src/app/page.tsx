@@ -1,16 +1,39 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { AnalyzeForm } from "@/components/AnalyzeForm";
 import { ChordChart } from "@/components/ChordChart";
+import { PlaybackDock } from "@/components/PlaybackDock";
 import { PrintActions } from "@/components/PrintActions";
-import { YouTubeEmbed } from "@/components/YouTubeEmbed";
 import type { AnalyzeResult } from "@/lib/types";
 
 export default function HomePage() {
   const [result, setResult] = useState<AnalyzeResult | null>(null);
+  const [localAudioUrl, setLocalAudioUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [playheadBeat, setPlayheadBeat] = useState<number | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [seekBeat, setSeekBeat] = useState<number | null>(null);
+  const [seekToken, setSeekToken] = useState(0);
+
+  const onPlayhead = useCallback((beat: number | null, playing: boolean) => {
+    setPlayheadBeat(beat);
+    setIsPlaying(playing);
+  }, []);
+
+  function handleResult(next: AnalyzeResult | null) {
+    setResult(next);
+    setPlayheadBeat(null);
+    setIsPlaying(false);
+    setSeekBeat(null);
+  }
+
+  function seekToBeat(beatIndex: number) {
+    setSeekBeat(beatIndex);
+    setSeekToken((n) => n + 1);
+    setPlayheadBeat(beatIndex);
+  }
 
   return (
     <main className="page">
@@ -28,7 +51,8 @@ export default function HomePage() {
           and print as PDF.
         </p>
         <AnalyzeForm
-          onResult={setResult}
+          onResult={handleResult}
+          onLocalAudioUrl={setLocalAudioUrl}
           onError={setError}
           busy={busy}
           setBusy={setBusy}
@@ -48,8 +72,20 @@ export default function HomePage() {
       {result ? (
         <div className="result-wrap">
           <PrintActions result={result} />
-          {result.videoId ? <YouTubeEmbed videoId={result.videoId} /> : null}
-          <ChordChart result={result} onChange={setResult} />
+          <PlaybackDock
+            result={result}
+            localAudioUrl={localAudioUrl}
+            seekBeat={seekBeat}
+            seekToken={seekToken}
+            onPlayhead={onPlayhead}
+          />
+          <ChordChart
+            result={result}
+            onChange={setResult}
+            playheadBeat={playheadBeat}
+            isPlaying={isPlaying}
+            onSeekBeat={seekToBeat}
+          />
           {result.url ? (
             <p className="source-link print-hide">
               Source:{" "}
@@ -69,10 +105,10 @@ export default function HomePage() {
               to a chord.
             </li>
             <li>
-              Read the chart as{" "}
-              <code>|C _ _ _ | G _ _ _ |</code> — bar lines and held beats.
+              Hit <strong>Play ♪</strong> — the note indicator follows the chart
+              in time with the music.
             </li>
-            <li>Hit Print / Save PDF for a clean practice sheet.</li>
+            <li>Print / Save PDF for a clean practice sheet.</li>
           </ol>
           <p className="how__note">
             Chord detection is automatic estimation from the mix (not an
@@ -83,7 +119,7 @@ export default function HomePage() {
 
       <footer className="footer print-hide">
         <span>ChordBars</span>
-        <span>YouTube chord notes · PDF print</span>
+        <span>YouTube chord notes · PDF print · synced ♪ playhead</span>
       </footer>
     </main>
   );

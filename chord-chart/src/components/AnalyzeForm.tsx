@@ -5,19 +5,36 @@ import type { AnalyzeResponse, AnalyzeResult } from "@/lib/types";
 
 type Props = {
   onResult: (result: AnalyzeResult | null) => void;
+  onLocalAudioUrl: (url: string | null) => void;
   onError: (message: string | null) => void;
   busy: boolean;
   setBusy: (busy: boolean) => void;
 };
 
-export function AnalyzeForm({ onResult, onError, busy, setBusy }: Props) {
+export function AnalyzeForm({
+  onResult,
+  onLocalAudioUrl,
+  onError,
+  busy,
+  setBusy,
+}: Props) {
   const [url, setUrl] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
+  const objectUrlRef = useRef<string | null>(null);
+
+  function clearLocalAudio() {
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = null;
+    }
+    onLocalAudioUrl(null);
+  }
 
   async function analyzeUrl(event: FormEvent) {
     event.preventDefault();
     onError(null);
     onResult(null);
+    clearLocalAudio();
     setBusy(true);
     try {
       const res = await fetch("/api/analyze", {
@@ -41,6 +58,7 @@ export function AnalyzeForm({ onResult, onError, busy, setBusy }: Props) {
   async function analyzeDemo() {
     onError(null);
     onResult(null);
+    clearLocalAudio();
     setBusy(true);
     try {
       const res = await fetch("/api/analyze", {
@@ -64,18 +82,25 @@ export function AnalyzeForm({ onResult, onError, busy, setBusy }: Props) {
   async function analyzeFile(file: File) {
     onError(null);
     onResult(null);
+    clearLocalAudio();
     setBusy(true);
     try {
+      const objectUrl = URL.createObjectURL(file);
+      objectUrlRef.current = objectUrl;
+      onLocalAudioUrl(objectUrl);
+
       const form = new FormData();
       form.append("file", file);
       const res = await fetch("/api/analyze", { method: "POST", body: form });
       const data = (await res.json()) as AnalyzeResponse;
       if (!data.ok) {
+        clearLocalAudio();
         onError(data.error);
         return;
       }
       onResult(data);
     } catch {
+      clearLocalAudio();
       onError("Upload analysis failed.");
     } finally {
       setBusy(false);
