@@ -433,24 +433,52 @@ code {
 }
 
 .mode-toggle {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.4rem;
-  margin-bottom: 0.75rem;
+  display: grid;
+  gap: 0.55rem;
+  margin-bottom: 0.9rem;
+  padding: 0.85rem 0.95rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(12, 26, 31, 0.55);
+}
+
+.mode-toggle__title {
+  margin: 0;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--mist);
+}
+
+.mode-toggle__switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem;
 }
 
 .mode-toggle__btn {
   appearance: none;
   border: 1px solid var(--line);
-  border-radius: 999px;
-  min-height: 2.4rem;
-  padding: 0.4rem 1rem;
+  border-radius: 12px;
+  min-height: 3.4rem;
+  padding: 0.55rem 0.75rem;
   background: transparent;
   color: var(--fog);
   font: inherit;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  text-align: left;
+}
+
+.mode-toggle__btn small {
+  font-weight: 500;
+  font-size: 0.78rem;
+  opacity: 0.75;
 }
 
 .mode-toggle__btn.is-active {
@@ -459,10 +487,79 @@ code {
   color: #1a1205;
 }
 
+.mode-toggle__btn.is-active small {
+  color: rgba(26, 18, 5, 0.75);
+}
+
 .mode-toggle__hint {
+  margin: 0;
   color: var(--mist);
   font-size: 0.88rem;
-  margin-left: 0.25rem;
+  line-height: 1.35;
+}
+
+.guitar-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin-bottom: 0.55rem;
+}
+
+@media (min-width: 640px) {
+  .guitar-row {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.guitar-chord {
+  position: relative;
+  appearance: none;
+  border: 1px solid rgba(21, 33, 38, 0.14);
+  border-radius: 12px;
+  background: #fff;
+  color: #152126;
+  padding: 0.85rem 0.7rem 0.7rem;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+}
+
+.guitar-chord:hover {
+  border-color: rgba(192, 120, 24, 0.4);
+}
+
+.guitar-chord.is-active {
+  border-color: rgba(192, 120, 24, 0.7);
+  box-shadow: 0 0 0 2px rgba(232, 162, 58, 0.28);
+  transform: translateY(-1px);
+  background: #fff8eb;
+}
+
+.guitar-chord__note {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.55rem;
+  color: #c07818;
+  animation: note-pulse 0.9s ease-in-out infinite;
+}
+
+.guitar-chord__name {
+  display: block;
+  font-family: var(--font-display), Syne, sans-serif;
+  font-size: clamp(1.35rem, 4vw, 1.7rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.guitar-chord__len {
+  display: block;
+  margin-top: 0.25rem;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #6d847a;
 }
 
 .listen-explainer {

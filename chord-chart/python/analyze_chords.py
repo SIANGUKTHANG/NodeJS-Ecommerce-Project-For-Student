@@ -21,8 +21,9 @@ from scipy import signal
 from scipy.ndimage import median_filter
 
 NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
-MAJ_PROFILE = np.array([1.0, 0.0, 0.5, 0.0, 0.8, 0.3, 0.0, 0.9, 0.0, 0.4, 0.0, 0.2])
-MIN_PROFILE = np.array([1.0, 0.0, 0.5, 0.8, 0.0, 0.3, 0.0, 0.9, 0.0, 0.0, 0.4, 0.2])
+# Emphasize root / third / fifth so major vs minor (M3 vs m3) separates cleanly.
+MAJ_PROFILE = np.array([1.0, 0.05, 0.15, 0.05, 1.0, 0.15, 0.08, 0.9, 0.05, 0.2, 0.05, 0.1])
+MIN_PROFILE = np.array([1.0, 0.05, 0.15, 1.0, 0.05, 0.15, 0.08, 0.9, 0.05, 0.1, 0.2, 0.05])
 
 
 def build_templates() -> tuple[list[str], np.ndarray]:
@@ -197,14 +198,18 @@ def chromagram(mag: np.ndarray, sr: int, n_fft: int) -> np.ndarray:
     freqs = np.fft.rfftfreq(n_fft, d=1.0 / sr)
     midi = hz_to_midi(freqs)
     chroma_idx = np.mod(np.round(midi).astype(int), 12)
-    # Ignore below ~60Hz and above ~5kHz
-    valid = (freqs >= 60) & (freqs <= 5000)
+    # Guitar/vocal mix band; weight midrange where chord thirds live
+    valid = (freqs >= 80) & (freqs <= 4000)
+    weights = np.ones_like(freqs)
+    weights[(freqs >= 200) & (freqs <= 1200)] *= 1.6
+    weighted = mag * weights[:, None]
     chroma = np.zeros((12, mag.shape[1]), dtype=np.float64)
     for i in range(12):
         mask = valid & (chroma_idx == i)
         if np.any(mask):
-            chroma[i] = mag[mask].sum(axis=0)
-    # Normalize frames
+            chroma[i] = weighted[mask].sum(axis=0)
+    # Log compression helps quieter thirds show up vs loud roots/bass
+    chroma = np.log1p(chroma * 20.0)
     norms = np.linalg.norm(chroma, axis=0, keepdims=True) + 1e-9
     return chroma / norms
 
@@ -243,20 +248,55 @@ def estimate_tempo(y: np.ndarray, sr: int) -> float:
     return float(np.clip(best_bpm, 60, 180))
 
 
+def decide_quality(chroma_vec: np.ndarray, root: int) -> str:
+    """Pick major vs minor from 3rd strength relative to the chosen root."""
+    major_third = float(chroma_vec[(root + 4) % 12])
+    minor_third = float(chroma_vec[(root + 3) % 12])
+    # Bias slightly toward major when nearly tied (common in pop mixes)
+    if minor_third > major_third * 1.08:
+        return "min"
+    return "maj"
+
+
+def classify_frame(chroma_vec: np.ndarray) -> tuple[str, float]:
+    """Return (chord_name, confidence) for one chroma frame."""
+    scores = CHORD_TEMPLATES @ chroma_vec
+    # Rank roots by max(maj, min) template score
+    best_root = 0
+    best_pair = -1.0
+    for root in range(12):
+        maj_i = root * 2
+        min_i = root * 2 + 1
+        pair = max(float(scores[maj_i]), float(scores[min_i]))
+        if pair > best_pair:
+            best_pair = pair
+            best_root = root
+
+    quality = decide_quality(chroma_vec, best_root)
+    name = NOTE_NAMES[best_root] if quality == "maj" else f"{NOTE_NAMES[best_root]}m"
+    # Confidence: separation between best and second-best root
+    root_scores = []
+    for root in range(12):
+        root_scores.append(max(float(scores[root * 2]), float(scores[root * 2 + 1])))
+    root_scores.sort(reverse=True)
+    separation = root_scores[0] - (root_scores[1] if len(root_scores) > 1 else 0.0)
+    conf = float(root_scores[0] * 0.65 + separation * 0.35)
+    return name, conf
+
+
 def frames_to_chords(chroma: np.ndarray) -> list[str]:
-    # Smooth chroma over time
-    smoothed = median_filter(chroma, size=(1, 5))
-    scores = CHORD_TEMPLATES @ smoothed  # (24, T)
-    idx = np.argmax(scores, axis=0)
-    conf = scores.max(axis=0)
-    # Low-confidence → rest / continue
-    chords = [CHORD_NAMES[i] if c > 0.55 else "_" for i, c in zip(idx, conf)]
-    # Median-like smoothing of labels
+    # Stronger temporal smooth so maj/min doesn't flicker every frame
+    smoothed = median_filter(chroma, size=(1, 9))
+    chords: list[str] = []
+    for t in range(smoothed.shape[1]):
+        name, conf = classify_frame(smoothed[:, t])
+        chords.append(name if conf > 0.42 else "_")
+
+    # Majority vote smoothing (wider window)
     smoothed_labels: list[str] = chords[:]
-    win = 3
+    win = 5
     for i in range(len(chords)):
         chunk = chords[max(0, i - win) : i + win + 1]
-        # majority vote ignoring _
         votes = [c for c in chunk if c != "_"]
         if votes:
             smoothed_labels[i] = max(set(votes), key=votes.count)
@@ -269,7 +309,6 @@ def quantize_to_beats(chords: list[str], frame_times: np.ndarray, bpm: float) ->
     beat_dur = 60.0 / bpm
     total_time = float(frame_times[-1]) if len(frame_times) else 0.0
     n_beats = max(4, int(math.floor(total_time / beat_dur)))
-    # Cap chart length for readability (~64 bars = 256 beats)
     n_beats = min(n_beats, 256)
     beat_chords: list[str] = []
     for b in range(n_beats):
@@ -277,7 +316,6 @@ def quantize_to_beats(chords: list[str], frame_times: np.ndarray, bpm: float) ->
         t1 = (b + 1) * beat_dur
         mask = (frame_times >= t0) & (frame_times < t1)
         if not np.any(mask):
-            # nearest frame
             idx = int(np.argmin(np.abs(frame_times - (t0 + t1) / 2)))
             beat_chords.append(chords[idx])
             continue
@@ -287,10 +325,32 @@ def quantize_to_beats(chords: list[str], frame_times: np.ndarray, bpm: float) ->
     return beat_chords
 
 
+def stabilize_bar_chords(beat_chords: list[str], beats_per_bar: int = 4) -> list[str]:
+    """One chord per bar (guitar-friendly), then expand back to beats."""
+    bar_chords: list[str] = []
+    for i in range(0, len(beat_chords), beats_per_bar):
+        chunk = beat_chords[i : i + beats_per_bar]
+        votes = [c for c in chunk if c != "_"]
+        if not votes:
+            # carry previous bar chord if possible
+            bar_chords.append(bar_chords[-1] if bar_chords else "_")
+        else:
+            bar_chords.append(max(set(votes), key=votes.count))
+    # Light consecutive-flicker cleanup: require 1-bar minimum already; merge 1-bar
+    # noise into neighbors when sandwiched by the same chord.
+    cleaned = bar_chords[:]
+    for i in range(1, len(cleaned) - 1):
+        if cleaned[i - 1] == cleaned[i + 1] and cleaned[i] != cleaned[i - 1]:
+            cleaned[i] = cleaned[i - 1]
+    expanded: list[str] = []
+    for c in cleaned:
+        expanded.extend([c] * beats_per_bar)
+    return expanded[: len(beat_chords)]
+
+
 def beats_to_bars(beat_chords: list[str], beats_per_bar: int = 4) -> list[list[str]]:
     bars: list[list[str]] = []
-    # Carry previous chord into "_" slots for display convention:
-    # first beat shows chord, subsequent same-chord beats become "_"
+    # Display convention for complex mode: chord on change, "_" while held
     display: list[str] = []
     prev = None
     for c in beat_chords:
@@ -298,11 +358,15 @@ def beats_to_bars(beat_chords: list[str], beats_per_bar: int = 4) -> list[list[s
             display.append("_")
         else:
             display.append(c)
-            prev = c
+            prev = c if c != "_" else prev
     for i in range(0, len(display), beats_per_bar):
         chunk = display[i : i + beats_per_bar]
         while len(chunk) < beats_per_bar:
             chunk.append("_")
+        # Guitar-friendly: if bar has a chord, put it on beat 1 and hold
+        sounded = next((x for x in chunk if x != "_"), None)
+        if sounded:
+            chunk = [sounded, "_", "_", "_"]
         bars.append(chunk)
     return bars
 
@@ -324,9 +388,9 @@ def analyze_wav(path: Path, max_seconds: int = 180) -> dict:
     bpm = estimate_tempo(y, sr)
     raw = frames_to_chords(chroma)
     beat_chords = quantize_to_beats(raw, frame_times, bpm)
+    beat_chords = stabilize_bar_chords(beat_chords)
     bars = beats_to_bars(beat_chords)
     notation = format_bars(bars)
-    # Unique progression summary
     progression = []
     for bar in bars:
         head = next((c for c in bar if c != "_"), "_")

@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import {
-  barChord,
+  chordRuns,
   formatNotation,
   formatSimpleNotation,
   progressionSummary,
@@ -63,63 +63,62 @@ function withNotation(result: AnalyzeResult, bars: string[][]): AnalyzeResult {
   };
 }
 
-function renderSimpleBars(
+function renderGuitarSimple(
   result: AnalyzeResult,
   active: { bar: number; beat: number } | null,
   onSeekBeat?: (beatIndex: number) => void,
 ) {
+  const runs = chordRuns(result.bars, result.sections);
   const nodes: ReactNode[] = [];
-  let i = 0;
-  while (i < result.bars.length) {
-    const label = sectionAt(result.sections, i);
-    if (label) {
+  let row: ReactNode[] = [];
+  let rowKey = 0;
+
+  function flushRow() {
+    if (!row.length) return;
+    nodes.push(
+      <div className="guitar-row" key={`g-row-${rowKey++}`}>
+        {row}
+      </div>,
+    );
+    row = [];
+  }
+
+  for (const run of runs) {
+    if (run.section) {
+      flushRow();
       nodes.push(
-        <div key={`sec-${i}`} className="chart-sheet__section">
-          [{label}]
+        <div key={`sec-${run.startBar}`} className="chart-sheet__section">
+          [{run.section}]
         </div>,
       );
     }
-    let end = Math.min(i + 4, result.bars.length);
-    for (let j = i + 1; j < end; j++) {
-      if (sectionAt(result.sections, j)) {
-        end = j;
-        break;
-      }
-    }
-    nodes.push(
-      <div className="chart-live__bar" key={`simple-row-${i}`}>
-        {result.bars.slice(i, end).map((bar, offset) => {
-          const bi = i + offset;
-          const chord = barChord(bar);
-          const barActive = active != null && active.bar === bi;
-          return (
-            <span className="chart-live__simple-cell" key={`s-${bi}`}>
-              <span className="chart-live__pipe" aria-hidden="true">
-                |
-              </span>
-              <button
-                type="button"
-                className={`chart-live__beat chart-live__beat--bar ${barActive ? "is-active" : ""}`}
-                onClick={() => onSeekBeat?.(bi * 4)}
-                aria-label={`Bar ${bi + 1}: ${chord}`}
-              >
-                {barActive ? (
-                  <span className="chart-live__note" aria-hidden="true">
-                    ♪
-                  </span>
-                ) : null}
-                <span className="chart-live__token">{chord}</span>
-              </button>
-            </span>
-          );
-        })}
-        <span className="chart-live__pipe" aria-hidden="true">
-          |
+    const endBar = run.startBar + run.bars - 1;
+    const isActive =
+      active != null &&
+      active.bar >= run.startBar &&
+      active.bar <= endBar;
+    row.push(
+      <button
+        key={`run-${run.startBar}`}
+        type="button"
+        className={`guitar-chord ${isActive ? "is-active" : ""}`}
+        onClick={() => onSeekBeat?.(run.startBar * 4)}
+        aria-label={`${run.chord} for ${run.bars} bar${run.bars > 1 ? "s" : ""}`}
+      >
+        {isActive ? (
+          <span className="guitar-chord__note" aria-hidden="true">
+            ♪
+          </span>
+        ) : null}
+        <span className="guitar-chord__name">{run.chord}</span>
+        <span className="guitar-chord__len">
+          {run.bars} bar{run.bars > 1 ? "s" : ""}
         </span>
-      </div>,
+      </button>,
     );
-    i = end;
+    if (row.length >= 4) flushRow();
   }
+  flushRow();
   return nodes;
 }
 
@@ -264,7 +263,7 @@ export function ChordChart({
         aria-label="Chord bars with playhead"
       >
         {simple
-          ? renderSimpleBars(result, active, onSeekBeat)
+          ? renderGuitarSimple(result, active, onSeekBeat)
           : result.bars.map((bar, bi) => {
               const label = sectionAt(result.sections, bi);
               return (
@@ -375,8 +374,8 @@ export function ChordChart({
 
       <p className="chart-sheet__hint print-hide">
         {simple
-          ? "Simple mode shows one chord per bar · switch to Complex for beat holds (_)"
-          : "♪ marks the beat in sync with playback · tap a beat to jump · _ = hold"}
+          ? "Simple mood: hold each chord for the shown bars — easy for guitar"
+          : "Complex mood: every beat · _ means keep holding the same chord"}
       </p>
     </section>
   );
